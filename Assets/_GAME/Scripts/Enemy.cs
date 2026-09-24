@@ -1,5 +1,6 @@
 using UnityEngine;
-
+using UnityEngine.InputSystem;
+using VRFPSKit;
 public class Enemy : MonoBehaviour
 {
     [SerializeField] float speed = 0.5f;
@@ -8,12 +9,33 @@ public class Enemy : MonoBehaviour
     [SerializeField] int damage = 1;
     Transform player;
     float nextAttackTime;
+    bool isDead;
+    Damageable damageable;
+    private void Awake()
+    {
+        damageable = GetComponent<Damageable>();
+    }
+    private void OnEnable()
+    {
+        damageable.DeathEvent += Die;
+    }
+    void OnDisable()
+    {
+        damageable.DeathEvent -= Die;
+    }
     private void Start()
     {
         player = Camera.main.transform;
     }
     private void Update()
     {
+        if (isDead) return;
+
+        if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
+        {
+            damageable.TakeDamage(25);
+            Debug.Log("Отладка: урон 25, осталось " + damageable.health);
+        }
         if (player == null) return;
 
         Vector3 target = player.position;
@@ -30,5 +52,11 @@ public class Enemy : MonoBehaviour
             Debug.Log("Монстр укусил игрока на " + damage);
         }
     }
-
+    void Die()
+    {
+        if (isDead) return;
+        isDead = true;
+        Debug.Log("Монстр умер");
+        Destroy(gameObject);
+    }
 }
