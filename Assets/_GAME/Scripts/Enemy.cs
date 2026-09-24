@@ -11,6 +11,7 @@ public class Enemy : MonoBehaviour
     float nextAttackTime;
     bool isDead;
     Damageable damageable;
+    PlayerHealth playerHealth;
     private void Awake()
     {
         damageable = GetComponent<Damageable>();
@@ -26,6 +27,8 @@ public class Enemy : MonoBehaviour
     private void Start()
     {
         player = Camera.main.transform;
+        playerHealth = Camera.main.GetComponent<PlayerHealth>();
+        Debug.Log("Камера: " + Camera.main.name + ", PlayerHealth найден: " + (playerHealth != null));
     }
     private void Update()
     {
@@ -49,6 +52,7 @@ public class Enemy : MonoBehaviour
         else if(Time.time >= nextAttackTime)
         {
             nextAttackTime = Time.time + attackCooldown;
+            playerHealth.TakeDamage(damage);
             Debug.Log("Монстр укусил игрока на " + damage);
         }
     }
