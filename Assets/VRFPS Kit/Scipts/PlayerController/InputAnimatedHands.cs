@@ -17,11 +17,17 @@ namespace VRFPSKit
         // Update is called once per frame
         void Update()
         {
-            float triggerValue = pinchAnimationAction.action.ReadValue<float>();
-            float gripValue = gripAnimationAction.action.ReadValue<float>();
+            // Без аниматора анимировать нечего
+            if (handAnimator == null)
+                return;
 
-            handAnimator.SetFloat("Trigger", triggerValue);
-            handAnimator.SetFloat("Grip", gripValue);
+            var pinchAction = pinchAnimationAction.action;
+            if (pinchAction != null)
+                handAnimator.SetFloat("Trigger", pinchAction.ReadValue<float>());
+
+            var gripAction = gripAnimationAction.action;
+            if (gripAction != null)
+                handAnimator.SetFloat("Grip", gripAction.ReadValue<float>());
         }
     }
 }
