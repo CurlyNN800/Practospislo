@@ -10,9 +10,7 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] GameObject portalPrefab;
     [SerializeField] float portalDelay = 2f;
     [SerializeField] float portalLifetime = 3f;
-    [SerializeField] Wave[] waves;
-    [SerializeField] float timeBetweenWaves = 6f;
-    [SerializeField] float timeBetweenSpawns = 1f;
+    [SerializeField] LevelConfig config;
 
     Transform player;
 
@@ -24,13 +22,13 @@ public class EnemySpawner : MonoBehaviour
 
     IEnumerator RunWaves()
     {
-        foreach (Wave wave in waves)
+        foreach (Wave wave in config.waves)
         {
             yield return StartCoroutine(SpawnWave(wave));
 
             yield return new WaitUntil(() => FindObjectsByType<Enemy>(FindObjectsSortMode.None).Length == 0);
 
-            yield return new WaitForSeconds(timeBetweenWaves);
+            yield return new WaitForSeconds(config.timeBetweenWaves);
         }
 
         Debug.Log("Все волны зачищены — победа!");
@@ -43,7 +41,7 @@ public class EnemySpawner : MonoBehaviour
             for (int i = 0; i < entry.count; i++)
             {
                 SpawnEnemy(entry.enemyPrefab);
-                yield return new WaitForSeconds(timeBetweenSpawns);
+                yield return new WaitForSeconds(config.timeBetweenSpawns);
             }
         }
     }
@@ -71,18 +69,5 @@ public class EnemySpawner : MonoBehaviour
         yield return new WaitForSeconds(portalLifetime);
 
         Destroy(portal);
-    }
-
-    [System.Serializable]
-    public class SpawnEntry
-    {
-        public GameObject enemyPrefab;
-        public int count;
-    }
-
-    [System.Serializable]
-    public class Wave
-    {
-        public SpawnEntry[] entries;
     }
 }

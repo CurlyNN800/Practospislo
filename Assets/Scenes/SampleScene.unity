@@ -804,15 +804,7 @@ MonoBehaviour:
   portalPrefab: {fileID: 8657973482106942929, guid: e6121537bc5ecfb4197e3d250fe019cb, type: 3}
   portalDelay: 1
   portalLifetime: 2
-  waves:
-  - entries:
-    - enemyPrefab: {fileID: 1980430565899826637, guid: 35cfebaa2aec8214dbd395a4d0b5460e, type: 3}
-      count: 5
-  - entries:
-    - enemyPrefab: {fileID: 1980430565899826637, guid: 35cfebaa2aec8214dbd395a4d0b5460e, type: 3}
-      count: 7
-  timeBetweenWaves: 5
-  timeBetweenSpawns: 1.5
+  config: {fileID: 11400000, guid: 4d4dc7c5ed9748d49b20f61c97c3c33f, type: 2}
 --- !u!4 &1445094228
 Transform:
   m_ObjectHideFlags: 0
