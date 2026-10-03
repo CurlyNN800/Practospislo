@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class EnemySpawner : MonoBehaviour
 {
@@ -8,6 +9,9 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] float maxDistance = 5f;
     [SerializeField] float minHeight = 0.5f;
     [SerializeField] float maxHeight = 2.5f;
+    [SerializeField] GameObject portalPrefab;
+    [SerializeField] float portalDelay = 2f;
+    [SerializeField] float portalLifetime = 3f;
     Transform player;
     float nextSpawnTime;
     private void Start()
@@ -33,6 +37,18 @@ public class EnemySpawner : MonoBehaviour
         Vector3 direction = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
         Vector3 position = player.position + direction * distance;
         position.y = Random.Range(minHeight, maxHeight);
+        StartCoroutine(SpawnWithPortal(prefab, position));
+    }
+    IEnumerator SpawnWithPortal(GameObject prefab, Vector3 position)
+    {
+        GameObject portal = Instantiate(portalPrefab, position, Quaternion.identity);
+
+        yield return new WaitForSeconds(portalDelay);
+
         Instantiate(prefab, position, Quaternion.identity);
+
+        yield return new WaitForSeconds(portalLifetime);
+
+        Destroy(portal);
     }
 }
