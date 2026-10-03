@@ -3,8 +3,6 @@ using System.Collections;
 
 public class EnemySpawner : MonoBehaviour
 {
-    [SerializeField] GameObject[] enemyPrefabs;
-    [SerializeField] float spawnInterval = 3f;
     [SerializeField] float minDistance = 3f;
     [SerializeField] float maxDistance = 5f;
     [SerializeField] float minHeight = 0.5f;
@@ -12,33 +10,56 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] GameObject portalPrefab;
     [SerializeField] float portalDelay = 2f;
     [SerializeField] float portalLifetime = 3f;
+    [SerializeField] Wave[] waves;
+    [SerializeField] float timeBetweenWaves = 6f;
+    [SerializeField] float timeBetweenSpawns = 1f;
+
     Transform player;
-    float nextSpawnTime;
+
     private void Start()
     {
         player = Camera.main.transform;
-        nextSpawnTime = Time.time + spawnInterval;
+        StartCoroutine(RunWaves());
     }
-    private void Update()
+
+    IEnumerator RunWaves()
     {
-       if (Time.time >= nextSpawnTime)
+        foreach (Wave wave in waves)
         {
-            SpawnEnemy();
-            nextSpawnTime = Time.time + spawnInterval;
+            yield return StartCoroutine(SpawnWave(wave));
+
+            yield return new WaitUntil(() => FindObjectsByType<Enemy>(FindObjectsSortMode.None).Length == 0);
+
+            yield return new WaitForSeconds(timeBetweenWaves);
+        }
+
+        Debug.Log("Все волны зачищены — победа!");
+    }
+
+    IEnumerator SpawnWave(Wave wave)
+    {
+        foreach (SpawnEntry entry in wave.entries)
+        {
+            for (int i = 0; i < entry.count; i++)
+            {
+                SpawnEnemy(entry.enemyPrefab);
+                yield return new WaitForSeconds(timeBetweenSpawns);
+            }
         }
     }
-    void SpawnEnemy()
+
+    void SpawnEnemy(GameObject prefab)
     {
-        int index = Random.Range(0, enemyPrefabs.Length);
-        GameObject prefab = enemyPrefabs[index];
         float angle = Random.Range(0f, 360f);
         float distance = Random.Range(minDistance, maxDistance);
 
         Vector3 direction = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
         Vector3 position = player.position + direction * distance;
         position.y = Random.Range(minHeight, maxHeight);
+
         StartCoroutine(SpawnWithPortal(prefab, position));
     }
+
     IEnumerator SpawnWithPortal(GameObject prefab, Vector3 position)
     {
         GameObject portal = Instantiate(portalPrefab, position, Quaternion.identity);
@@ -51,18 +72,17 @@ public class EnemySpawner : MonoBehaviour
 
         Destroy(portal);
     }
+
     [System.Serializable]
     public class SpawnEntry
     {
         public GameObject enemyPrefab;
         public int count;
     }
+
     [System.Serializable]
     public class Wave
     {
         public SpawnEntry[] entries;
     }
-    [SerializeField] Wave[] waves;
-    [SerializeField] float timeBetweenWaves = 6f;
-    [SerializeField] float timeBetweenSpawns = 1f;
 }
