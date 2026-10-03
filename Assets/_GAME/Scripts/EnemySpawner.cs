@@ -51,4 +51,18 @@ public class EnemySpawner : MonoBehaviour
 
         Destroy(portal);
     }
+    [System.Serializable]
+    public class SpawnEntry
+    {
+        public GameObject enemyPrefab;
+        public int count;
+    }
+    [System.Serializable]
+    public class Wave
+    {
+        public SpawnEntry[] entries;
+    }
+    [SerializeField] Wave[] waves;
+    [SerializeField] float timeBetweenWaves = 6f;
+    [SerializeField] float timeBetweenSpawns = 1f;
 }
