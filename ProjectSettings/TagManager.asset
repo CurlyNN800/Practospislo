@@ -11,15 +11,15 @@ TagManager:
   - 
   - Water
   - UI
+  - Player
+  - Bullet
+  - Hand
+  - HandPresence
   - 
+  - Interactable
+  - ChildInteractable
   - 
-  - 
-  - 
-  - 
-  - FirearmParts
-  - 
-  - 
-  - 
+  - PostProcessing
   - 
   - 
   - 
