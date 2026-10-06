@@ -1,4 +1,4 @@
-using UnityEngine;
+п»їusing UnityEngine;
 using UnityEngine.InputSystem;
 using VRFPSKit;
 public class Enemy : MonoBehaviour
@@ -28,7 +28,7 @@ public class Enemy : MonoBehaviour
     {
         player = Camera.main.transform;
         playerHealth = Camera.main.GetComponent<PlayerHealth>();
-        Debug.Log("Камера: " + Camera.main.name + ", PlayerHealth найден: " + (playerHealth != null));
+        Debug.Log("РљР°РјРµСЂР°: " + Camera.main.name + ", PlayerHealth РЅР°Р№РґРµРЅ: " + (playerHealth != null));
     }
     private void Update()
     {
@@ -37,7 +37,7 @@ public class Enemy : MonoBehaviour
         if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
         {
             damageable.TakeDamage(25);
-            Debug.Log("Отладка: урон 25, осталось " + damageable.health);
+            Debug.Log("РћС‚Р»Р°РґРєР°: СѓСЂРѕРЅ 25, РѕСЃС‚Р°Р»РѕСЃСЊ " + damageable.health);
         }
         if (player == null) return;
 
@@ -53,14 +53,14 @@ public class Enemy : MonoBehaviour
         {
             nextAttackTime = Time.time + attackCooldown;
             playerHealth.TakeDamage(damage);
-            Debug.Log("Монстр укусил игрока на " + damage);
+            Debug.Log("РњРѕРЅСЃС‚СЂ СѓРєСѓСЃРёР» РёРіСЂРѕРєР° РЅР° " + damage);
         }
     }
     void Die()
     {
         if (isDead) return;
         isDead = true;
-        Debug.Log("Монстр умер");
+        Debug.Log("РњРѕРЅСЃС‚СЂ СѓРјРµСЂ");
         Destroy(gameObject);
     }
 }

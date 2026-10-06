@@ -1,4 +1,4 @@
-using UnityEngine;
+п»їusing UnityEngine;
 
 public class PlayerHealth : MonoBehaviour
 {
@@ -8,10 +8,10 @@ public class PlayerHealth : MonoBehaviour
     {
         if (isDead == true) return;
         health -= amount;
-        Debug.Log("Осталось здоровья " + health);
+        Debug.Log("РћСЃС‚Р°Р»РѕСЃСЊ Р·РґРѕСЂРѕРІСЊСЏ " + health);
         if (health <= 0)
         {
-            Debug.Log("Игрок погиб");
+            Debug.Log("РРіСЂРѕРє РїРѕРіРёР±");
             isDead = true;
         }
     }

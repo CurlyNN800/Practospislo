@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 
 public class EnemySpawner : MonoBehaviour
@@ -13,6 +13,8 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] LevelConfig config;
 
     Transform player;
+    // Монстры, которые ещё "в портале" и не созданы
+    int pendingSpawns;
 
     private void Start()
     {
@@ -26,12 +28,13 @@ public class EnemySpawner : MonoBehaviour
         {
             yield return StartCoroutine(SpawnWave(wave));
 
-            yield return new WaitUntil(() => FindObjectsByType<Enemy>(FindObjectsSortMode.None).Length == 0);
+            // Ждём, пока все монстры выйдут из порталов и будут убиты
+            yield return new WaitUntil(() => pendingSpawns == 0 && FindObjectsByType<Enemy>(FindObjectsSortMode.None).Length == 0);
 
             yield return new WaitForSeconds(config.timeBetweenWaves);
         }
 
-        Debug.Log("��� ����� �������� � ������!");
+        Debug.Log("Все волны зачищены — победа!");
     }
 
     IEnumerator SpawnWave(Wave wave)
@@ -55,6 +58,7 @@ public class EnemySpawner : MonoBehaviour
         Vector3 position = player.position + direction * distance;
         position.y = Random.Range(minHeight, maxHeight);
 
+        pendingSpawns++;
         StartCoroutine(SpawnWithPortal(prefab, position));
     }
 
@@ -65,6 +69,7 @@ public class EnemySpawner : MonoBehaviour
         yield return new WaitForSeconds(portalDelay);
 
         Instantiate(prefab, position, Quaternion.identity);
+        pendingSpawns--;
 
         yield return new WaitForSeconds(portalLifetime);
 
