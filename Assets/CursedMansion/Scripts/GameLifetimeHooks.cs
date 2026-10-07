@@ -19,6 +19,7 @@ namespace CursedMansion
                 var go = new GameObject(nameof(GameProgress));
                 go.AddComponent<GameProgress>();
             }
+            GameProgress.Instance.ConfigureForScene(scene.name);
 
             if (!string.IsNullOrEmpty(SceneTransfer.PendingSpawnId))
             {

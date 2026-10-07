@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using UnityEditor;
+#if UNITY_EDITOR
+using UnityEditor; // только для PrefabUtility в OnValidate, в сборке игрока UnityEditor нет
+#endif
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;

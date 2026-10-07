@@ -9,5 +9,7 @@ namespace CursedMansion
         public const string HouseScene = "HouseScene";
         public const string Interior = "Interior";
         public const string InsideHouse = "InsideHouse";
+        // Арена с волнами монстров (Assets/_GAME): своя логика снаряжения и урона, хуки особняка ей не нужны
+        public const string Arena = "SampleScene";
     }
 }
