@@ -19,6 +19,8 @@ public class GameStateManager : MonoBehaviour
 
     [SerializeField] EnemySpawner spawner;
     [SerializeField] PlayerHealth playerHealth;
+    // Полное восстановление снаряжения (пистолет, магазины) при каждом запуске уровня
+    [SerializeField] LevelLoadout loadout;
     // levels[0] = Уровень 1, levels[1] = Уровень 2, ...
     [SerializeField] LevelConfig[] levels;
 
@@ -48,6 +50,8 @@ public class GameStateManager : MonoBehaviour
             spawner = FindFirstObjectByType<EnemySpawner>();
         if (playerHealth == null)
             playerHealth = FindFirstObjectByType<PlayerHealth>();
+        if (loadout == null)
+            loadout = FindFirstObjectByType<LevelLoadout>();
 
         // Пауза: кнопка Menu на левом контроллере, в симуляторе / на клавиатуре — Esc
         pauseAction = new InputAction("Pause", InputActionType.Button);
@@ -122,6 +126,11 @@ public class GameStateManager : MonoBehaviour
 
         ResetLevel();
         CurrentLevelNumber = levelNumber;
+        // Сюда приходят и «Заново», и «Следующий уровень»
+        if (loadout != null)
+            loadout.RestoreLoadout();
+        else
+            Debug.LogWarning("[GameStateManager] В сцене нет LevelLoadout — снаряжение не восстановлено.");
         spawner.StartLevel(config);
         SetState(GameState.Playing);
     }

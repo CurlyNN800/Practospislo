@@ -22,6 +22,9 @@ public class Enemy : MonoBehaviour
     [SerializeField] string idleState = "CharacterArmature|Flying_Idle";
     // Время смерти, если клипа смерти нет
     [SerializeField] float fallbackDeathTime = 1f;
+    // После клипа смерти монстр ещё лежит в последней позе, затем плавно сжимается и исчезает
+    [SerializeField] float deathHoldTime = 0.6f;
+    [SerializeField] float deathShrinkTime = 0.4f;
 
     Transform player;
     float nextAttackTime;
@@ -155,16 +158,40 @@ public class Enemy : MonoBehaviour
 
         GameAudio.Instance?.PlayMonsterDeath(transform.position);
 
-        float deathTime = PlayState(deathState) ? GetClipLength(deathClip, fallbackDeathTime) : fallbackDeathTime;
-        // Объект с Enemy живёт до конца клипа, поэтому волна ждёт не дольше анимации смерти.
+        // Смерть запускаем сразу с начала клипа (Play, а не CrossFade): CrossFade мог «утонуть»
+        // в незавершённом переходе атаки, и клип смерти не успевал проиграться до удаления
+        bool played = PlayState(deathState, instant: true);
+        float clipTime = played ? GetClipLength(deathClip, fallbackDeathTime) : fallbackDeathTime;
+        if (!played)
+            Debug.LogWarning($"[Enemy] Состояние смерти '{deathState}' не найдено в Animator — монстр просто исчезнет.", this);
+        else
+            Debug.Log($"[Enemy] Анимация смерти '{deathState}', {clipTime:0.00} с");
+
+        // Объект с Enemy живёт до конца анимации смерти, поэтому волна ждёт её окончания.
         // StopLevel удаляет и умирающих монстров сразу (ищет всех Enemy).
-        Destroy(gameObject, deathTime);
+        StartCoroutine(DeathRoutine(clipTime));
+    }
+
+    IEnumerator DeathRoutine(float clipTime)
+    {
+        yield return new WaitForSeconds(clipTime + deathHoldTime);
+
+        Vector3 startScale = transform.localScale;
+        float t = 0f;
+        while (t < deathShrinkTime)
+        {
+            t += Time.deltaTime;
+            transform.localScale = Vector3.Lerp(startScale, Vector3.zero, t / deathShrinkTime);
+            yield return null;
+        }
+        Destroy(gameObject);
     }
 
     // --- Animator ---
 
     // Запускает состояние во всех Animator монстра, где оно есть. false — такого состояния нет нигде.
-    bool PlayState(string stateName)
+    // instant — сразу с первого кадра, без перехода
+    bool PlayState(string stateName, bool instant = false)
     {
         if (string.IsNullOrEmpty(stateName))
             return false;
@@ -177,7 +204,10 @@ public class Enemy : MonoBehaviour
                 continue;
             if (!animator.HasState(0, hash))
                 continue;
-            animator.CrossFade(hash, 0.1f, 0);
+            if (instant)
+                animator.Play(hash, 0, 0f);
+            else
+                animator.CrossFade(hash, 0.1f, 0);
             played = true;
         }
         return played;

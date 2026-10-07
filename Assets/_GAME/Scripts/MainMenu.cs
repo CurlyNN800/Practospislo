@@ -1,4 +1,5 @@
 using System.Collections;
+using Unity.XR.CoreUtils;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -44,6 +45,14 @@ public class MainMenu : MonoBehaviour
 
     [Header("Положение перед игроком")]
     [SerializeField] float distance = 1.5f;
+    // Высота центра меню над полом (полом считаем XROrigin: в режиме Floor он стоит на уровне пола)
+    [SerializeField] float heightAboveFloor = 1.4f;
+    // Камера ниже этой высоты над полом = трекинг ещё не пришёл (через Link первые кадры камера на y = 0)
+    [SerializeField] float minTrackedHeight = 0.5f;
+    // Сколько максимум ждать трекинг (реальное время), потом ставим меню всё равно
+    [SerializeField] float trackingWaitTimeout = 3f;
+
+    Coroutine placing;
 
     void Awake()
     {
@@ -145,7 +154,9 @@ public class MainMenu : MonoBehaviour
         if (state == GameState.Victory)
             nextLevelButton.gameObject.SetActive(gameState.HasNextLevel);
 
-        StartCoroutine(PlaceInFrontOfPlayer());
+        if (placing != null)
+            StopCoroutine(placing);
+        placing = StartCoroutine(PlaceInFrontOfPlayer());
     }
 
     void ShowOnly(GameObject panel)
@@ -166,17 +177,30 @@ public class MainMenu : MonoBehaviour
         ShowOnly(levelsPanel);
     }
 
-    // Ставим панель перед глазами игрока на уровне глаз. Ждём кадр, чтобы XR-трекинг
-    // успел выставить позицию камеры (на старте игры в первом кадре она может быть нулевой).
-    // yield null работает и при Time.timeScale = 0, поэтому подходит и для паузы.
+    // Ставим панель на 1.5 м перед игроком на высоте пол + 1.4 м — одинаково для главного меню, паузы,
+    // победы и поражения. В режиме Floor через Link камера первые кадры стоит на полу (y = 0) и смотрит
+    // в никуда, поэтому ждём, пока трекинг поднимет её выше minTrackedHeight (не дольше trackingWaitTimeout).
+    // Ждём по кадрам и unscaled-времени: работает и при Time.timeScale = 0 (пауза).
     IEnumerator PlaceInFrontOfPlayer()
     {
-        yield return null;
         yield return null;
 
         Camera cam = Camera.main;
         if (cam == null)
+        {
+            placing = null;
             yield break;
+        }
+
+        float floor = FloorHeight();
+        float waited = 0f;
+        while (cam.transform.position.y - floor < minTrackedHeight && waited < trackingWaitTimeout)
+        {
+            waited += Time.unscaledDeltaTime;
+            yield return null;
+        }
+        if (waited >= trackingWaitTimeout)
+            Debug.LogWarning("[MainMenu] Трекинг головы не поднялся выше " + minTrackedHeight + " м — меню поставлено на стандартную высоту.");
 
         Vector3 forward = cam.transform.forward;
         forward.y = 0f;
@@ -184,9 +208,18 @@ public class MainMenu : MonoBehaviour
             forward = Vector3.forward;
         forward.Normalize();
 
-        transform.position = cam.transform.position + forward * distance;
+        Vector3 position = cam.transform.position + forward * distance;
+        position.y = floor + heightAboveFloor;
+        transform.position = position;
         // Лицевая сторона Canvas смотрит по -Z, поэтому разворачиваем по направлению взгляда
         transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
+        placing = null;
+    }
+
+    static float FloorHeight()
+    {
+        XROrigin origin = FindFirstObjectByType<XROrigin>();
+        return origin != null ? origin.transform.position.y : 0f;
     }
 
     // Закрытые уровни — серые и некликабельные

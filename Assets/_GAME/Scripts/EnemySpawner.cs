@@ -21,6 +21,8 @@ public class EnemySpawner : MonoBehaviour
     bool running;
     // Порталы, которые сейчас висят в сцене (чтобы убрать их при остановке уровня)
     readonly List<GameObject> activePortals = new();
+    // Отсчёт перед первой волной (создаётся при первом запуске уровня)
+    LevelCountdown countdown;
 
     // Все волны уровня зачищены
     public event Action LevelCompleted;
@@ -52,6 +54,25 @@ public class EnemySpawner : MonoBehaviour
 
     IEnumerator RunWaves()
     {
+        // Время на подготовку: зарядить пистолет, разобрать магазины. Считаем по секундам
+        // обычным (scaled) временем, поэтому на паузе отсчёт стоит.
+        if (config.startDelay > 0f)
+        {
+            if (countdown == null)
+                countdown = LevelCountdown.Create(Camera.main);
+
+            float left = config.startDelay;
+            while (left > 0f)
+            {
+                countdown.Show(Mathf.CeilToInt(left));
+                // До следующего целого числа на табло (для 8 → 1 с, для 7.5 → 0.5 с)
+                float step = left - (Mathf.CeilToInt(left) - 1);
+                yield return new WaitForSeconds(step);
+                left -= step;
+            }
+            countdown.Hide();
+        }
+
         foreach (Wave wave in config.waves)
         {
             yield return StartCoroutine(SpawnWave(wave));
@@ -71,6 +92,8 @@ public class EnemySpawner : MonoBehaviour
     public void StopLevel()
     {
         StopAllCoroutines();
+        if (countdown != null)
+            countdown.Hide();
 
         foreach (Enemy enemy in FindObjectsByType<Enemy>(FindObjectsSortMode.None))
             Destroy(enemy.gameObject);
