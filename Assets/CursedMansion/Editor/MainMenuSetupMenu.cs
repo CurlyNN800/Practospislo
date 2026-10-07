@@ -202,6 +202,10 @@ namespace CursedMansion.Editor
             AssignClip(so, "buttonClickClip", "Assets/Samples/XR Interaction Toolkit/3.3.2/Starter Assets/DemoSceneAssets/Audio/Button Pop.wav");
             AssignClip(so, "portalOpenClip", "Assets/_GAME/Audio/SFX/PortalOpen_MonsterWhirr.mp3");
             AssignClip(so, "menuMusicClip", "Assets/_GAME/Audio/Music/MenuMusic_DangerAroundTheCorner.mp3");
+            AssignClip(so, "monsterAttackClip", "Assets/_GAME/Audio/SFX/MonsterAttack.wav");
+            AssignClip(so, "monsterDeathClip", "Assets/_GAME/Audio/SFX/MonsterDeath.wav");
+            AssignClip(so, "victoryClip", "Assets/_GAME/Audio/SFX/Victory.wav");
+            AssignClip(so, "defeatClip", "Assets/_GAME/Audio/SFX/Defeat.wav");
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
