@@ -559,7 +559,7 @@ MonoBehaviour:
   maxDistance: 5
   minHeight: 0.5
   maxHeight: 2.5
-  portalPrefab: {fileID: 2762982851810959877, guid: 1ea1681fda7029baa2477842b7c8c880, type: 3}
+  portalPrefab: {fileID: 2762982851810959877, guid: a28790f9492443d084a3d1e28e2e599e, type: 3}
   portalDelay: 1
   portalLifetime: 2
   config: {fileID: 11400000, guid: 4d4dc7c5ed9748d49b20f61c97c3c33f, type: 2}
