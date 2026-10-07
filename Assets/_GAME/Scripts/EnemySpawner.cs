@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
 public class EnemySpawner : MonoBehaviour
@@ -10,15 +10,36 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] GameObject portalPrefab;
     [SerializeField] float portalDelay = 2f;
     [SerializeField] float portalLifetime = 3f;
+    // Конфиг текущего уровня — подставляется из меню через StartLevel
     [SerializeField] LevelConfig config;
 
     Transform player;
     // Монстры, которые ещё "в портале" и не созданы
     int pendingSpawns;
+    bool running;
 
-    private void Start()
+    public LevelConfig CurrentConfig => config;
+    public bool IsRunning => running;
+
+    // Спавнер сам не стартует: уровень запускается только командой из меню
+    public void StartLevel(LevelConfig levelConfig)
     {
+        if (running)
+        {
+            Debug.LogWarning("[EnemySpawner] Уровень уже идёт — повторный запуск проигнорирован.");
+            return;
+        }
+
+        if (levelConfig == null)
+        {
+            Debug.LogError("[EnemySpawner] Не передан LevelConfig — уровень не запущен.");
+            return;
+        }
+
+        config = levelConfig;
         player = Camera.main.transform;
+        running = true;
+        Debug.Log($"[EnemySpawner] Запуск уровня: {config.name}");
         StartCoroutine(RunWaves());
     }
 
@@ -34,6 +55,7 @@ public class EnemySpawner : MonoBehaviour
             yield return new WaitForSeconds(config.timeBetweenWaves);
         }
 
+        running = false;
         Debug.Log("Все волны зачищены — победа!");
     }
 
