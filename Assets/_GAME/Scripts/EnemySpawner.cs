@@ -115,6 +115,7 @@ public class EnemySpawner : MonoBehaviour
     {
         GameObject portal = Instantiate(portalPrefab, position, Quaternion.identity);
         activePortals.Add(portal);
+        GameAudio.Instance?.PlayPortalOpen(position);
 
         yield return new WaitForSeconds(portalDelay);
 

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.InputSystem;
 using VRFPSKit;
 public class Enemy : MonoBehaviour
@@ -53,6 +53,8 @@ public class Enemy : MonoBehaviour
         {
             nextAttackTime = Time.time + attackCooldown;
             playerHealth.TakeDamage(damage);
+            if (GameStateManager.Instance == null || GameStateManager.Instance.IsPlaying)
+                GameAudio.Instance?.PlayMonsterAttack(transform.position);
             Debug.Log("Монстр укусил игрока на " + damage);
         }
     }
@@ -61,6 +63,7 @@ public class Enemy : MonoBehaviour
         if (isDead) return;
         isDead = true;
         Debug.Log("Монстр умер");
+        GameAudio.Instance?.PlayMonsterDeath(transform.position);
         Destroy(gameObject);
     }
 }

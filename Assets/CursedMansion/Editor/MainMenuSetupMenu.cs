@@ -56,6 +56,7 @@ namespace CursedMansion.Editor
             Undo.RegisterCreatedObjectUndo(managerGo, "Create Game State Manager");
             var manager = managerGo.AddComponent<GameStateManager>();
             SetupManager(manager);
+            SetupAudio(managerGo.AddComponent<GameAudio>(), manager);
 
             // --- Canvas ---
             var root = new GameObject(MenuRootName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(TrackedDeviceGraphicRaycaster));
@@ -190,6 +191,26 @@ namespace CursedMansion.Editor
             so.FindProperty("playerHealth").objectReferenceValue = playerHealth;
 
             so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // Назначаем звуки, которые уже есть в проекте. Недостающие остаются пустыми —
+        // их можно положить в Assets/_GAME/Audio/SFX и назначить в инспекторе GameAudio.
+        static void SetupAudio(GameAudio audio, GameStateManager manager)
+        {
+            var so = new SerializedObject(audio);
+            so.FindProperty("gameState").objectReferenceValue = manager;
+            AssignClip(so, "buttonClickClip", "Assets/Samples/XR Interaction Toolkit/3.3.2/Starter Assets/DemoSceneAssets/Audio/Button Pop.wav");
+            AssignClip(so, "portalOpenClip", "Assets/_GAME/Audio/SFX/PortalOpen_MonsterWhirr.mp3");
+            AssignClip(so, "menuMusicClip", "Assets/_GAME/Audio/Music/MenuMusic_DangerAroundTheCorner.mp3");
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        static void AssignClip(SerializedObject so, string property, string path)
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+            if (clip == null)
+                Debug.LogWarning($"[GameAudio] Не найден звук {path} — поле {property} останется пустым.");
+            so.FindProperty(property).objectReferenceValue = clip;
         }
 
         [MenuItem("CursedMansion/Debug/Reset Level Progress")]

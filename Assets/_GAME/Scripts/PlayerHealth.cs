@@ -7,6 +7,10 @@ public class PlayerHealth : MonoBehaviour
     int maxHealth;
     bool isDead = false;
 
+    // Получен урон (сколько)
+    public event Action<int> Damaged;
+    // Изменилось здоровье: (текущее, максимум) — при уроне и при сбросе
+    public event Action<int, int> HealthChanged;
     // Здоровье дошло до 0
     public event Action Died;
 
@@ -17,6 +21,10 @@ public class PlayerHealth : MonoBehaviour
     {
         // Стартовое значение из инспектора считаем максимумом
         maxHealth = health;
+
+        // Обратная связь кита (часы на руке, красная виньетка, звук ранения)
+        if (GetComponent<PlayerHealthFeedback>() == null)
+            gameObject.AddComponent<PlayerHealthFeedback>();
     }
 
     public void TakeDamage(int amount)
@@ -25,8 +33,11 @@ public class PlayerHealth : MonoBehaviour
         // Урон проходит только во время игры (не в меню, паузе, на экранах победы/поражения)
         if (GameStateManager.Instance != null && !GameStateManager.Instance.IsPlaying) return;
 
-        health -= amount;
+        health = Mathf.Max(0, health - amount);
         Debug.Log("Осталось здоровья " + health);
+        Damaged?.Invoke(amount);
+        HealthChanged?.Invoke(health, maxHealth);
+
         if (health <= 0)
         {
             Debug.Log("Игрок погиб");
@@ -40,5 +51,6 @@ public class PlayerHealth : MonoBehaviour
     {
         health = maxHealth;
         isDead = false;
+        HealthChanged?.Invoke(health, maxHealth);
     }
 }

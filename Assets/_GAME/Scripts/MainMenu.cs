@@ -58,6 +58,10 @@ public class MainMenu : MonoBehaviour
             return;
         }
 
+        // Звук клика на всех кнопках меню (включая скрытые панели)
+        foreach (Button button in GetComponentsInChildren<Button>(true))
+            button.onClick.AddListener(() => GameAudio.Instance?.PlayButtonClick());
+
         playButton.onClick.AddListener(() => gameState.StartLevel(1));
         levelsButton.onClick.AddListener(ShowLevels);
         exitButton.onClick.AddListener(Quit);
