@@ -1,5 +1,7 @@
 using UnityEngine;
+using System;
 using System.Collections;
+using System.Collections.Generic;
 
 public class EnemySpawner : MonoBehaviour
 {
@@ -17,6 +19,11 @@ public class EnemySpawner : MonoBehaviour
     // Монстры, которые ещё "в портале" и не созданы
     int pendingSpawns;
     bool running;
+    // Порталы, которые сейчас висят в сцене (чтобы убрать их при остановке уровня)
+    readonly List<GameObject> activePortals = new();
+
+    // Все волны уровня зачищены
+    public event Action LevelCompleted;
 
     public LevelConfig CurrentConfig => config;
     public bool IsRunning => running;
@@ -57,6 +64,26 @@ public class EnemySpawner : MonoBehaviour
 
         running = false;
         Debug.Log("Все волны зачищены — победа!");
+        LevelCompleted?.Invoke();
+    }
+
+    // Полная остановка уровня: корутины, живые монстры, порталы
+    public void StopLevel()
+    {
+        StopAllCoroutines();
+
+        foreach (Enemy enemy in FindObjectsByType<Enemy>(FindObjectsSortMode.None))
+            Destroy(enemy.gameObject);
+
+        foreach (GameObject portal in activePortals)
+        {
+            if (portal != null)
+                Destroy(portal);
+        }
+        activePortals.Clear();
+
+        pendingSpawns = 0;
+        running = false;
     }
 
     IEnumerator SpawnWave(Wave wave)
@@ -73,12 +100,12 @@ public class EnemySpawner : MonoBehaviour
 
     void SpawnEnemy(GameObject prefab)
     {
-        float angle = Random.Range(0f, 360f);
-        float distance = Random.Range(minDistance, maxDistance);
+        float angle = UnityEngine.Random.Range(0f, 360f);
+        float distance = UnityEngine.Random.Range(minDistance, maxDistance);
 
         Vector3 direction = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
         Vector3 position = player.position + direction * distance;
-        position.y = Random.Range(minHeight, maxHeight);
+        position.y = UnityEngine.Random.Range(minHeight, maxHeight);
 
         pendingSpawns++;
         StartCoroutine(SpawnWithPortal(prefab, position));
@@ -87,6 +114,7 @@ public class EnemySpawner : MonoBehaviour
     IEnumerator SpawnWithPortal(GameObject prefab, Vector3 position)
     {
         GameObject portal = Instantiate(portalPrefab, position, Quaternion.identity);
+        activePortals.Add(portal);
 
         yield return new WaitForSeconds(portalDelay);
 
@@ -95,6 +123,7 @@ public class EnemySpawner : MonoBehaviour
 
         yield return new WaitForSeconds(portalLifetime);
 
+        activePortals.Remove(portal);
         Destroy(portal);
     }
 }

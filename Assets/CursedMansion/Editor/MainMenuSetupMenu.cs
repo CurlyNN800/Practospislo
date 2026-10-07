@@ -8,20 +8,28 @@ using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace CursedMansion.Editor
 {
-    /// <summary>Собирает в открытой сцене главное меню: World Space Canvas под XR-луч + EventSystem с XRUIInputModule.</summary>
+    /// <summary>
+    /// Собирает в открытой сцене все экраны игры (главное меню, уровни, пауза, победа, поражение)
+    /// в одном World Space Canvas под XR-луч, EventSystem с XRUIInputModule и GameStateManager.
+    /// </summary>
     public static class MainMenuSetupMenu
     {
         const string MenuRootName = "Main Menu";
+        const string ManagerName = "Game State Manager";
         const string ConfigsFolder = "Assets/_GAME/Configs";
-        static readonly Vector2 CanvasSize = new(800f, 900f);
-        // 800 px * 0.001 = 0.8 м в ширину
+        const int LevelCount = 3;
+        // 820 px * 0.001 = 0.82 м в ширину
         const float CanvasScale = 0.001f;
 
         // Разметка панелей (в пикселях Canvas)
-        const float TitleHeight = 220f;
-        const float BottomPadding = 60f;
-        const float ButtonSpacing = 36f;
-        static readonly Vector2 ButtonSize = new(520f, 110f);
+        const float ContentWidth = 820f;
+        const float TitleHeight = 130f;
+        const float Spacing = 28f;
+        const int TopPadding = 50;
+        const int BottomPadding = 60;
+        // Кнопки в 1.3 раза крупнее прежних 520x110
+        static readonly Vector2 ButtonSize = new(676f, 143f);
+        const int ButtonFontSize = 62;
         // Мертвенно-голубой
         static readonly Color TitleColor = new(0.62f, 0.86f, 0.95f);
 
@@ -37,8 +45,17 @@ namespace CursedMansion.Editor
             var old = GameObject.Find(MenuRootName);
             if (old != null)
                 Undo.DestroyObjectImmediate(old);
+            var oldManager = Object.FindFirstObjectByType<GameStateManager>();
+            if (oldManager != null)
+                Undo.DestroyObjectImmediate(oldManager.gameObject);
 
             EnsureXrEventSystem();
+
+            // --- Менеджер состояний ---
+            var managerGo = new GameObject(ManagerName);
+            Undo.RegisterCreatedObjectUndo(managerGo, "Create Game State Manager");
+            var manager = managerGo.AddComponent<GameStateManager>();
+            SetupManager(manager);
 
             // --- Canvas ---
             var root = new GameObject(MenuRootName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(TrackedDeviceGraphicRaycaster));
@@ -50,67 +67,129 @@ namespace CursedMansion.Editor
             root.GetComponent<CanvasScaler>().dynamicPixelsPerUnit = 10f;
 
             var rootRect = (RectTransform)root.transform;
-            rootRect.sizeDelta = CanvasSize;
+            rootRect.sizeDelta = new Vector2(ContentWidth, 1000f);
             rootRect.localScale = Vector3.one * CanvasScale;
             // Временная позиция для редактора; в игре MainMenu переставит панель перед игроком
             rootRect.position = new Vector3(0f, 1.5f, 1.5f);
 
-            var background = CreateUiObject("Background", root.transform);
-            Stretch(background);
-            var bgImage = background.gameObject.AddComponent<Image>();
+            // Content = фон + панели. Высота фона подстраивается под активную панель (ContentSizeFitter),
+            // поэтому у панелей с разным числом кнопок нет пустого места снизу.
+            var content = CreateUiObject("Content", root.transform);
+            content.anchorMin = content.anchorMax = new Vector2(0.5f, 0.5f);
+            content.pivot = new Vector2(0.5f, 0.5f);
+            content.sizeDelta = new Vector2(ContentWidth, 0f);
+            content.anchoredPosition = Vector2.zero;
+
+            var bgImage = content.gameObject.AddComponent<Image>();
             bgImage.sprite = s_Sprite;
             bgImage.type = Image.Type.Sliced;
             bgImage.color = new Color(0.05f, 0.05f, 0.08f, 0.9f);
 
-            // --- Главное меню ---
-            var mainPanel = CreatePanel("MainPanel", root.transform, "Они идут", out var mainButtons);
-            var playButton = CreateButton("PlayButton", "Играть", mainButtons);
-            var levelsButton = CreateButton("LevelsButton", "Уровни", mainButtons);
-            var exitButton = CreateButton("ExitButton", "Выход", mainButtons);
+            var contentLayout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+            contentLayout.childControlWidth = true;
+            contentLayout.childControlHeight = true;
+            contentLayout.childForceExpandWidth = true;
+            contentLayout.childForceExpandHeight = false;
+            var fitter = content.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            // --- Подменю уровней (та же разметка, что у главного) ---
-            var levelsPanel = CreatePanel("LevelsPanel", root.transform, "Выбор уровня", out var levelsButtonsRoot);
-            var levelButtons = new Button[3];
+            // --- Главное меню ---
+            var mainPanel = CreatePanel("MainPanel", content, "Они идут");
+            var playButton = CreateButton("PlayButton", "Играть", mainPanel);
+            var levelsButton = CreateButton("LevelsButton", "Уровни", mainPanel);
+            var exitButton = CreateButton("ExitButton", "Выход", mainPanel);
+
+            // --- Подменю уровней ---
+            var levelsPanel = CreatePanel("LevelsPanel", content, "Выбор уровня");
+            var levelButtons = new Button[LevelCount];
             for (int i = 0; i < levelButtons.Length; i++)
-                levelButtons[i] = CreateButton($"Level{i + 1}Button", $"Уровень {i + 1}", levelsButtonsRoot);
-            var backButton = CreateButton("BackButton", "Назад", levelsButtonsRoot);
+                levelButtons[i] = CreateButton($"Level{i + 1}Button", $"Уровень {i + 1}", levelsPanel);
+            var backButton = CreateButton("BackButton", "Назад", levelsPanel);
+
+            // --- Пауза ---
+            var pausePanel = CreatePanel("PausePanel", content, "Пауза");
+            var resumeButton = CreateButton("ResumeButton", "Продолжить", pausePanel);
+            var pauseRestartButton = CreateButton("RestartButton", "Заново", pausePanel);
+            var pauseMenuButton = CreateButton("MenuButton", "В меню", pausePanel);
+
+            // --- Победа ---
+            var victoryPanel = CreatePanel("VictoryPanel", content, "Победа!");
+            var nextLevelButton = CreateButton("NextLevelButton", "Следующий уровень", victoryPanel);
+            var victoryRestartButton = CreateButton("RestartButton", "Заново", victoryPanel);
+            var victoryMenuButton = CreateButton("MenuButton", "В меню", victoryPanel);
+
+            // --- Поражение ---
+            var defeatPanel = CreatePanel("DefeatPanel", content, "Поражение");
+            var defeatRestartButton = CreateButton("RestartButton", "Заново", defeatPanel);
+            var defeatMenuButton = CreateButton("MenuButton", "В меню", defeatPanel);
+
+            // На старте видно только главное меню
             levelsPanel.gameObject.SetActive(false);
+            pausePanel.gameObject.SetActive(false);
+            victoryPanel.gameObject.SetActive(false);
+            defeatPanel.gameObject.SetActive(false);
 
             // --- Скрипт меню и ссылки ---
             var menu = root.AddComponent<MainMenu>();
             var so = new SerializedObject(menu);
+            so.FindProperty("gameState").objectReferenceValue = manager;
+            so.FindProperty("content").objectReferenceValue = content.gameObject;
             so.FindProperty("mainPanel").objectReferenceValue = mainPanel.gameObject;
             so.FindProperty("levelsPanel").objectReferenceValue = levelsPanel.gameObject;
+            so.FindProperty("pausePanel").objectReferenceValue = pausePanel.gameObject;
+            so.FindProperty("victoryPanel").objectReferenceValue = victoryPanel.gameObject;
+            so.FindProperty("defeatPanel").objectReferenceValue = defeatPanel.gameObject;
+
             so.FindProperty("playButton").objectReferenceValue = playButton;
             so.FindProperty("levelsButton").objectReferenceValue = levelsButton;
             so.FindProperty("exitButton").objectReferenceValue = exitButton;
             so.FindProperty("backButton").objectReferenceValue = backButton;
-
             var buttonsProp = so.FindProperty("levelButtons");
             buttonsProp.arraySize = levelButtons.Length;
             for (int i = 0; i < levelButtons.Length; i++)
                 buttonsProp.GetArrayElementAtIndex(i).objectReferenceValue = levelButtons[i];
 
+            so.FindProperty("resumeButton").objectReferenceValue = resumeButton;
+            so.FindProperty("pauseRestartButton").objectReferenceValue = pauseRestartButton;
+            so.FindProperty("pauseMenuButton").objectReferenceValue = pauseMenuButton;
+            so.FindProperty("nextLevelButton").objectReferenceValue = nextLevelButton;
+            so.FindProperty("victoryRestartButton").objectReferenceValue = victoryRestartButton;
+            so.FindProperty("victoryMenuButton").objectReferenceValue = victoryMenuButton;
+            so.FindProperty("defeatRestartButton").objectReferenceValue = defeatRestartButton;
+            so.FindProperty("defeatMenuButton").objectReferenceValue = defeatMenuButton;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            Selection.activeGameObject = root;
+            EditorSceneManager.MarkSceneDirty(root.scene);
+            Debug.Log("[MainMenu] Меню и Game State Manager созданы. Сохрани сцену (Ctrl+S).");
+        }
+
+        static void SetupManager(GameStateManager manager)
+        {
+            var so = new SerializedObject(manager);
+
             var levelsProp = so.FindProperty("levels");
-            levelsProp.arraySize = 3;
-            for (int i = 0; i < 3; i++)
+            levelsProp.arraySize = LevelCount;
+            for (int i = 0; i < LevelCount; i++)
             {
                 string path = $"{ConfigsFolder}/Level{i + 1}.asset";
                 var config = AssetDatabase.LoadAssetAtPath<LevelConfig>(path);
                 if (config == null)
-                    Debug.LogWarning($"[MainMenu] Не найден конфиг {path} — назначь его вручную.");
+                    Debug.LogWarning($"[MainMenu] Не найден конфиг {path} — назначь его в Game State Manager вручную.");
                 levelsProp.GetArrayElementAtIndex(i).objectReferenceValue = config;
             }
 
             var spawner = Object.FindFirstObjectByType<EnemySpawner>();
             if (spawner == null)
-                Debug.LogWarning("[MainMenu] В сцене нет EnemySpawner — назначь его в MainMenu вручную.");
+                Debug.LogWarning("[MainMenu] В сцене нет EnemySpawner — назначь его в Game State Manager вручную.");
             so.FindProperty("spawner").objectReferenceValue = spawner;
-            so.ApplyModifiedPropertiesWithoutUndo();
 
-            Selection.activeGameObject = root;
-            EditorSceneManager.MarkSceneDirty(root.scene);
-            Debug.Log("[MainMenu] Главное меню создано. Сохрани сцену (Ctrl+S).");
+            var playerHealth = Object.FindFirstObjectByType<PlayerHealth>();
+            if (playerHealth == null)
+                Debug.LogWarning("[MainMenu] В сцене нет PlayerHealth — назначь его в Game State Manager вручную.");
+            so.FindProperty("playerHealth").objectReferenceValue = playerHealth;
+
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         [MenuItem("CursedMansion/Debug/Reset Level Progress")]
@@ -153,40 +232,32 @@ namespace CursedMansion.Editor
             rect.offsetMax = Vector2.zero;
         }
 
-        // Обе панели размечены одинаково: заголовок сверху фиксированной высоты,
-        // под ним область кнопок, в которой столбец кнопок центрируется по вертикали и горизонтали.
-        static RectTransform CreatePanel(string name, Transform parent, string titleText, out RectTransform buttons)
+        // Все панели размечены одинаково: столбец "заголовок + кнопки" по центру,
+        // заголовок сразу над кнопками, между всеми элементами одинаковый отступ.
+        static RectTransform CreatePanel(string name, Transform parent, string titleText)
         {
             var panel = CreateUiObject(name, parent);
-            Stretch(panel);
 
-            CreateTitle(titleText, panel);
-
-            buttons = CreateUiObject("Buttons", panel);
-            buttons.anchorMin = Vector2.zero;
-            buttons.anchorMax = Vector2.one;
-            buttons.offsetMin = new Vector2(0f, BottomPadding);
-            buttons.offsetMax = new Vector2(0f, -TitleHeight);
-
-            var layout = buttons.gameObject.AddComponent<VerticalLayoutGroup>();
-            layout.spacing = ButtonSpacing;
-            layout.childAlignment = TextAnchor.MiddleCenter;
-            // Размер кнопок задаёт LayoutElement — все кнопки одинаковые
+            var layout = panel.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(0, 0, TopPadding, BottomPadding);
+            layout.spacing = Spacing;
+            layout.childAlignment = TextAnchor.UpperCenter;
+            // Размер элементов задаёт LayoutElement — все кнопки одинаковые
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
+
+            CreateTitle(titleText, panel);
             return panel;
         }
 
         static void CreateTitle(string text, Transform parent)
         {
             var title = CreateUiObject("Title", parent);
-            title.anchorMin = new Vector2(0f, 1f);
-            title.anchorMax = new Vector2(1f, 1f);
-            title.pivot = new Vector2(0.5f, 1f);
-            title.sizeDelta = new Vector2(0f, TitleHeight);
-            title.anchoredPosition = Vector2.zero;
+            var element = title.gameObject.AddComponent<LayoutElement>();
+            element.preferredWidth = ContentWidth;
+            element.preferredHeight = TitleHeight;
 
             var label = title.gameObject.AddComponent<Text>();
             label.font = s_Font;
@@ -231,7 +302,7 @@ namespace CursedMansion.Editor
             var label = labelRect.gameObject.AddComponent<Text>();
             label.font = s_Font;
             label.text = text;
-            label.fontSize = 48;
+            label.fontSize = ButtonFontSize;
             label.alignment = TextAnchor.MiddleCenter;
             label.color = Color.white;
             label.raycastTarget = false;

@@ -2,13 +2,21 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Главное меню в World Space Canvas: кнопки нажимаются лучом Ray Interactor.
-// Меню само ничего не спавнит — оно передаёт нужный LevelConfig в EnemySpawner.StartLevel.
+// Все экраны игры в одном World Space Canvas: главное меню, выбор уровня, пауза, победа, поражение.
+// Кнопки нажимаются лучом Ray Interactor. Сам скрипт ничего не решает — он вызывает методы
+// GameStateManager и показывает нужную панель, когда менеджер сообщает о смене состояния.
 public class MainMenu : MonoBehaviour
 {
+    [SerializeField] GameStateManager gameState;
+    // Фон + все панели; прячется целиком, пока идёт игра
+    [SerializeField] GameObject content;
+
     [Header("Панели")]
     [SerializeField] GameObject mainPanel;
     [SerializeField] GameObject levelsPanel;
+    [SerializeField] GameObject pausePanel;
+    [SerializeField] GameObject victoryPanel;
+    [SerializeField] GameObject defeatPanel;
 
     [Header("Главное меню")]
     [SerializeField] Button playButton;
@@ -16,44 +24,147 @@ public class MainMenu : MonoBehaviour
     [SerializeField] Button exitButton;
 
     [Header("Выбор уровня")]
-    // levelButtons[i] запускает levels[i] (индекс 0 = Уровень 1)
+    // levelButtons[i] запускает уровень i + 1
     [SerializeField] Button[] levelButtons;
     [SerializeField] Button backButton;
 
-    [Header("Уровни")]
-    [SerializeField] EnemySpawner spawner;
-    [SerializeField] LevelConfig[] levels;
+    [Header("Пауза")]
+    [SerializeField] Button resumeButton;
+    [SerializeField] Button pauseRestartButton;
+    [SerializeField] Button pauseMenuButton;
+
+    [Header("Победа")]
+    [SerializeField] Button nextLevelButton;
+    [SerializeField] Button victoryRestartButton;
+    [SerializeField] Button victoryMenuButton;
+
+    [Header("Поражение")]
+    [SerializeField] Button defeatRestartButton;
+    [SerializeField] Button defeatMenuButton;
 
     [Header("Положение перед игроком")]
     [SerializeField] float distance = 1.5f;
-    [SerializeField] float heightOffset = 0f;
 
     void Awake()
     {
-        playButton.onClick.AddListener(() => StartLevel(0));
+        if (gameState == null)
+            gameState = FindFirstObjectByType<GameStateManager>();
+
+        if (!HasAllReferences())
+        {
+            Debug.LogError("[MainMenu] Меню собрано старой версией сборщика или в сцене нет Game State Manager. " +
+                           "Запусти CursedMansion → MVP → Create Main Menu (World Space) и сохрани сцену.", this);
+            enabled = false;
+            return;
+        }
+
+        playButton.onClick.AddListener(() => gameState.StartLevel(1));
         levelsButton.onClick.AddListener(ShowLevels);
         exitButton.onClick.AddListener(Quit);
         backButton.onClick.AddListener(ShowMain);
 
         for (int i = 0; i < levelButtons.Length; i++)
         {
-            int index = i; // копия для замыкания
-            levelButtons[i].onClick.AddListener(() => StartLevel(index));
+            int levelNumber = i + 1; // копия для замыкания
+            levelButtons[i].onClick.AddListener(() => gameState.StartLevel(levelNumber));
         }
+
+        resumeButton.onClick.AddListener(() => gameState.Resume());
+        pauseRestartButton.onClick.AddListener(() => gameState.Restart());
+        pauseMenuButton.onClick.AddListener(() => gameState.GoToMenu());
+
+        nextLevelButton.onClick.AddListener(() => gameState.NextLevel());
+        victoryRestartButton.onClick.AddListener(() => gameState.Restart());
+        victoryMenuButton.onClick.AddListener(() => gameState.GoToMenu());
+
+        defeatRestartButton.onClick.AddListener(() => gameState.Restart());
+        defeatMenuButton.onClick.AddListener(() => gameState.GoToMenu());
 
         Canvas canvas = GetComponent<Canvas>();
         if (canvas != null && canvas.worldCamera == null)
             canvas.worldCamera = Camera.main;
     }
 
-    void Start()
+    bool HasAllReferences()
     {
-        ShowMain();
+        if (gameState == null || content == null)
+            return false;
+        if (mainPanel == null || levelsPanel == null || pausePanel == null || victoryPanel == null || defeatPanel == null)
+            return false;
+        if (playButton == null || levelsButton == null || exitButton == null || backButton == null)
+            return false;
+        if (resumeButton == null || pauseRestartButton == null || pauseMenuButton == null)
+            return false;
+        if (nextLevelButton == null || victoryRestartButton == null || victoryMenuButton == null)
+            return false;
+        if (defeatRestartButton == null || defeatMenuButton == null)
+            return false;
+        if (levelButtons == null)
+            return false;
+        foreach (Button button in levelButtons)
+        {
+            if (button == null)
+                return false;
+        }
+        return true;
+    }
+
+    void OnEnable()
+    {
+        if (gameState != null)
+            gameState.StateChanged += OnStateChanged;
+    }
+
+    void OnDisable()
+    {
+        if (gameState != null)
+            gameState.StateChanged -= OnStateChanged;
+    }
+
+    void OnStateChanged(GameState state)
+    {
+        // Во время игры меню скрыто, на остальных состояниях — показываем нужный экран
+        if (state == GameState.Playing)
+        {
+            content.SetActive(false);
+            return;
+        }
+
+        ShowOnly(state switch
+        {
+            GameState.Paused => pausePanel,
+            GameState.Victory => victoryPanel,
+            GameState.Defeat => defeatPanel,
+            _ => mainPanel
+        });
+
+        if (state == GameState.Victory)
+            nextLevelButton.gameObject.SetActive(gameState.HasNextLevel);
+
         StartCoroutine(PlaceInFrontOfPlayer());
     }
 
-    // Ставим панель перед глазами игрока. Ждём пару кадров, чтобы XR-трекинг
-    // успел выставить позицию камеры (в первом кадре она может быть нулевой).
+    void ShowOnly(GameObject panel)
+    {
+        content.SetActive(true);
+        mainPanel.SetActive(panel == mainPanel);
+        levelsPanel.SetActive(panel == levelsPanel);
+        pausePanel.SetActive(panel == pausePanel);
+        victoryPanel.SetActive(panel == victoryPanel);
+        defeatPanel.SetActive(panel == defeatPanel);
+    }
+
+    void ShowMain() => ShowOnly(mainPanel);
+
+    void ShowLevels()
+    {
+        RefreshLevelButtons();
+        ShowOnly(levelsPanel);
+    }
+
+    // Ставим панель перед глазами игрока на уровне глаз. Ждём кадр, чтобы XR-трекинг
+    // успел выставить позицию камеры (на старте игры в первом кадре она может быть нулевой).
+    // yield null работает и при Time.timeScale = 0, поэтому подходит и для паузы.
     IEnumerator PlaceInFrontOfPlayer()
     {
         yield return null;
@@ -69,22 +180,9 @@ public class MainMenu : MonoBehaviour
             forward = Vector3.forward;
         forward.Normalize();
 
-        transform.position = cam.transform.position + forward * distance + Vector3.up * heightOffset;
+        transform.position = cam.transform.position + forward * distance;
         // Лицевая сторона Canvas смотрит по -Z, поэтому разворачиваем по направлению взгляда
         transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
-    }
-
-    void ShowMain()
-    {
-        mainPanel.SetActive(true);
-        levelsPanel.SetActive(false);
-    }
-
-    void ShowLevels()
-    {
-        RefreshLevelButtons();
-        mainPanel.SetActive(false);
-        levelsPanel.SetActive(true);
     }
 
     // Закрытые уровни — серые и некликабельные
@@ -93,7 +191,7 @@ public class MainMenu : MonoBehaviour
         for (int i = 0; i < levelButtons.Length; i++)
         {
             int levelNumber = i + 1;
-            bool unlocked = LevelProgress.IsUnlocked(levelNumber) && i < levels.Length && levels[i] != null;
+            bool unlocked = LevelProgress.IsUnlocked(levelNumber) && gameState.GetLevelConfig(levelNumber) != null;
             levelButtons[i].interactable = unlocked;
 
             Text label = levelButtons[i].GetComponentInChildren<Text>();
@@ -103,31 +201,6 @@ public class MainMenu : MonoBehaviour
                 label.color = unlocked ? Color.white : new Color(0.55f, 0.55f, 0.55f);
             }
         }
-    }
-
-    void StartLevel(int index)
-    {
-        if (spawner == null)
-        {
-            Debug.LogError("[MainMenu] Не назначен EnemySpawner.");
-            return;
-        }
-
-        if (index < 0 || index >= levels.Length || levels[index] == null)
-        {
-            Debug.LogError($"[MainMenu] Нет LevelConfig для уровня {index + 1}.");
-            return;
-        }
-
-        if (!LevelProgress.IsUnlocked(index + 1))
-        {
-            Debug.LogWarning($"[MainMenu] Уровень {index + 1} ещё закрыт.");
-            return;
-        }
-
-        spawner.StartLevel(levels[index]);
-        // Прячем меню, пока идёт уровень
-        gameObject.SetActive(false);
     }
 
     void Quit()
