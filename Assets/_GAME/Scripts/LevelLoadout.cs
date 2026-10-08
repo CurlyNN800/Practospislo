@@ -13,6 +13,8 @@ using VRFPSKit;
 //  - подсумки Magazine Socket 1..3: полные магазины (новые или дозаряженные);
 //  - магазины на столе (те, что лежали в сцене на старте) возвращаются на стол полными;
 //    все остальные брошенные магазины (пустые и нет) удаляются.
+// Во время игры (Update): брошенный пистолет, провалившийся под пол или улетевший далеко от игрока, сразу
+// возвращается в кобуру; такие же магазины — со стола обратно на стол, остальные удаляются.
 // Магазины кладутся в сокеты как в CursedMansion.PlayerSpawnLoadout: Instantiate в точке сокета
 // и XRInteractionManager.SelectEnter. Предметы в руке игрока не отбираем, только дозаряжаем.
 public class LevelLoadout : MonoBehaviour
@@ -27,6 +29,18 @@ public class LevelLoadout : MonoBehaviour
 
     // M17 17rd Magazine
     [SerializeField] GameObject magazinePrefab;
+
+    [Header("Улетевшие предметы (во время игры)")]
+    [Tooltip("Брошенный предмет ниже этой высоты считается провалившимся под пол")]
+    [SerializeField] float fallY = -1f;
+    [Tooltip("Брошенный предмет дальше этого расстояния от игрока (м) считается улетевшим")]
+    [SerializeField] float maxDistance = 10f;
+    [Tooltip("Как часто проверять (с)")]
+    [SerializeField] float checkInterval = 0.25f;
+
+    // Насколько предмет может сдвинуться от своего места на столе и всё ещё считаться «лежащим на столе»
+    const float HomeTolerance = 1f;
+    float nextLostCheckTime;
 
     struct StartPose
     {
@@ -112,23 +126,9 @@ public class LevelLoadout : MonoBehaviour
 
     void RestoreFirearm(Firearm firearm, Transform rig, XRInteractionManager manager)
     {
-        var grab = firearm.GetComponent<XRGrabInteractable>();
-
-        // Брошен на пол (или лежит на столе) — в кобуру, иначе на исходное место на столе.
+        // Брошен на пол, улетел или лежит на столе — в кобуру, иначе на исходное место на столе.
         // В руке или уже в кобуре — не трогаем.
-        if (grab != null && !grab.isSelected)
-        {
-            XRSocketInteractor holster = rig != null ? FindSocket(rig, HolsterSocketName) : null;
-            if (holster != null && !holster.hasSelection &&
-                (holster.interactionLayers.value & grab.interactionLayers.value) != 0)
-            {
-                manager.SelectEnter((IXRSelectInteractor)holster, (IXRSelectInteractable)grab);
-            }
-            else if (firearmPoses.TryGetValue(firearm, out StartPose pose))
-            {
-                MoveTo(firearm.gameObject, pose);
-            }
-        }
+        ReturnFirearm(firearm, rig, manager);
 
         // Магазин в пистолете
         Magazine magazine = null;
@@ -170,6 +170,113 @@ public class LevelLoadout : MonoBehaviour
             action.isLockedBack = false;
             action.actionPosition01 = 0f;
         }
+    }
+
+    // Возвращает брошенный пистолет: в кобуру, а если она занята или не принимает — на исходное место на столе.
+    // Пистолет в руке или в сокете не трогаем. Возвращает false, если вернуть было некуда.
+    bool ReturnFirearm(Firearm firearm, Transform rig, XRInteractionManager manager)
+    {
+        var grab = firearm.GetComponent<XRGrabInteractable>();
+        if (grab == null || grab.isSelected)
+            return true;
+
+        XRSocketInteractor holster = rig != null ? FindSocket(rig, HolsterSocketName) : null;
+        if (holster != null && !holster.hasSelection &&
+            (holster.interactionLayers.value & grab.interactionLayers.value) != 0)
+        {
+            // Сначала переносим пистолет к кобуре и гасим скорость: иначе с пола / из-под пола он «летит» к сокету
+            // (при Velocity Tracking — сквозь стены и пол) и может не долететь
+            Transform attach = holster.GetAttachTransform(grab);
+            MoveTo(firearm.gameObject, new StartPose { position = attach.position, rotation = attach.rotation });
+            manager.SelectEnter((IXRSelectInteractor)holster, (IXRSelectInteractable)grab);
+            if (grab.isSelected)
+                return true;
+            Debug.LogWarning($"[LevelLoadout] Кобура не приняла {firearm.name} — кладём на стол.", firearm);
+        }
+
+        if (firearmPoses.TryGetValue(firearm, out StartPose pose))
+        {
+            MoveTo(firearm.gameObject, pose);
+            return true;
+        }
+
+        Debug.LogWarning($"[LevelLoadout] Некуда вернуть {firearm.name}: кобура недоступна, исходного места на столе нет.", firearm);
+        return false;
+    }
+
+    // --- Улетевшие предметы во время игры ---
+
+    // Раз в checkInterval: брошенный пистолет ниже fallY или дальше maxDistance от игрока — сразу в кобуру;
+    // брошенный магазин — со стола возвращаем на стол, остальные удаляем.
+    void Update()
+    {
+        if (GameStateManager.Instance == null || !GameStateManager.Instance.IsPlaying)
+            return;
+
+        nextLostCheckTime -= Time.deltaTime;
+        if (nextLostCheckTime > 0f)
+            return;
+        nextLostCheckTime = checkInterval;
+
+        Camera head = Camera.main;
+        if (head == null)
+            return;
+        Vector3 playerPosition = head.transform.position;
+
+        XRInteractionManager manager = null;
+        Transform rig = null;
+
+        foreach (Firearm firearm in FindObjectsByType<Firearm>(FindObjectsSortMode.None))
+        {
+            var grab = firearm.GetComponent<XRGrabInteractable>();
+            if (grab == null || grab.isSelected)
+                continue;
+            firearmPoses.TryGetValue(firearm, out StartPose home);
+            if (!IsLost(firearm.transform.position, playerPosition, firearmPoses.ContainsKey(firearm), home))
+                continue;
+
+            if (manager == null)
+            {
+                manager = FindFirstObjectByType<XRInteractionManager>();
+                rig = FindRigRoot();
+                if (manager == null)
+                    return;
+            }
+            Debug.Log($"[LevelLoadout] {firearm.name} улетел ({firearm.transform.position}) — возвращаем.", firearm);
+            ReturnFirearm(firearm, rig, manager);
+        }
+
+        foreach (Magazine magazine in FindObjectsByType<Magazine>(FindObjectsSortMode.None))
+        {
+            var grab = magazine.GetComponent<XRGrabInteractable>();
+            if (grab == null || grab.isSelected)
+                continue;
+            bool fromTable = tableMagazinePoses.TryGetValue(magazine, out StartPose home);
+            if (!IsLost(magazine.transform.position, playerPosition, fromTable, home))
+                continue;
+
+            if (fromTable)
+            {
+                MoveTo(magazine.gameObject, home);
+            }
+            else
+            {
+                Debug.Log($"[LevelLoadout] Магазин {magazine.name} улетел ({magazine.transform.position}) — удалён.", magazine);
+                Destroy(magazine.gameObject);
+            }
+        }
+    }
+
+    // Ниже пола — потерян всегда. Далеко от игрока — потерян, если это не предмет, спокойно лежащий у себя на столе
+    // (игрок просто мог отойти от стола дальше maxDistance).
+    bool IsLost(Vector3 position, Vector3 playerPosition, bool hasHome, StartPose home)
+    {
+        if (position.y < fallY)
+            return true;
+        float maxSqr = maxDistance * maxDistance;
+        if ((position - playerPosition).sqrMagnitude <= maxSqr)
+            return false;
+        return !hasHome || (position - home.position).sqrMagnitude > HomeTolerance * HomeTolerance;
     }
 
     // --- Магазины ---

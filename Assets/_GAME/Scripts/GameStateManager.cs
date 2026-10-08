@@ -53,6 +53,10 @@ public class GameStateManager : MonoBehaviour
         if (loadout == null)
             loadout = FindFirstObjectByType<LevelLoadout>();
 
+        // Лучи на руках — только в меню (выключаются на время игры)
+        if (GetComponent<MenuRayToggle>() == null)
+            gameObject.AddComponent<MenuRayToggle>();
+
         // Пауза: кнопка Menu на левом контроллере, в симуляторе / на клавиатуре — Esc
         pauseAction = new InputAction("Pause", InputActionType.Button);
         pauseAction.AddBinding("<XRController>{LeftHand}/{MenuButton}");
